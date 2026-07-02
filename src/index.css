@@ -1,19 +1,26 @@
 @import "tailwindcss";
 
+/* The single source of truth for the brand colour. The toggle flips this
+   one variable at runtime and the whole gold ramp re-derives from it.
+   Default = the uncanny "gluu orange" (#f59e0b), parked between the Option 5
+   gold (#e5a50a) and that other famous orange (#ff9900). */
+:root {
+  --company-color: #f59e0b;
+}
+
 @theme {
-  /* "gluu orange" — the uncanny middle ground between the Option 5 gold
-     (#e5a50a) and that other famous orange (#ff9900). Close enough to make
-     people do a double-take, golden enough that they can't place it. */
-  --color-gold-50: #fff7eb;
-  --color-gold-100: #feecc7;
-  --color-gold-200: #fdd98a;
-  --color-gold-300: #fbc24d;
-  --color-gold-400: #fbaa17;
-  --color-gold-500: #f59e0b;   /* primary — rgb(245,158,11) */
-  --color-gold-600: #d97f06;
-  --color-gold-700: #b45f09;
-  --color-gold-800: #92490e;
-  --color-gold-900: #78390f;
+  /* Entire ramp derived from --company-color via color-mix, so one toggle
+     recolours everything (buttons, CTA, the boxed "uu", accents, borders). */
+  --color-gold-50: color-mix(in oklab, var(--company-color) 12%, white);
+  --color-gold-100: color-mix(in oklab, var(--company-color) 22%, white);
+  --color-gold-200: color-mix(in oklab, var(--company-color) 45%, white);
+  --color-gold-300: color-mix(in oklab, var(--company-color) 70%, white);
+  --color-gold-400: color-mix(in oklab, var(--company-color) 88%, white);
+  --color-gold-500: var(--company-color);   /* primary */
+  --color-gold-600: color-mix(in oklab, var(--company-color) 82%, black);
+  --color-gold-700: color-mix(in oklab, var(--company-color) 64%, black);
+  --color-gold-800: color-mix(in oklab, var(--company-color) 48%, black);
+  --color-gold-900: color-mix(in oklab, var(--company-color) 38%, black);
 
   /* warm ink + cream neutrals */
   --color-ink-950: #100e0a;

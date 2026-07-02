@@ -1,1 +1,56 @@
 @import "tailwindcss";
+
+@theme {
+  /* Option 5 — warm golden/amber palette */
+  --color-gold-50: #fff9ea;
+  --color-gold-100: #fdefc4;
+  --color-gold-200: #fbdf8a;
+  --color-gold-300: #f7ca4d;
+  --color-gold-400: #f2b419;
+  --color-gold-500: #e5a50a;   /* primary brand gold */
+  --color-gold-600: #c4850a;
+  --color-gold-700: #9c6410;
+  --color-gold-800: #7f4f15;
+  --color-gold-900: #6b4117;
+
+  /* warm ink + cream neutrals */
+  --color-ink-950: #100e0a;
+  --color-ink-900: #16130d;
+  --color-ink-800: #241f16;
+  --color-ink-700: #3a3125;
+  --color-ink-500: #6b6152;
+  --color-ink-400: #8b8172;
+  --color-cream-50: #fdfbf6;
+  --color-cream-100: #faf6ec;
+  --color-cream-200: #f2ebda;
+
+  /* Font — Option 3: Manrope */
+  --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background-color: var(--color-cream-50);
+}
+
+/* marquee for the logo/trust row */
+@keyframes gluu-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.animate-marquee {
+  animation: gluu-marquee 28s linear infinite;
+}
+
+/* subtle floating grain for depth */
+@keyframes gluu-float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-14px) rotate(2deg); }
+}
+.animate-float {
+  animation: gluu-float 9s ease-in-out infinite;
+}

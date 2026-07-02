@@ -1,17 +1,19 @@
 @import "tailwindcss";
 
 @theme {
-  /* Option 5 — warm golden/amber palette */
-  --color-gold-50: #fff9ea;
-  --color-gold-100: #fdefc4;
-  --color-gold-200: #fbdf8a;
-  --color-gold-300: #f7ca4d;
-  --color-gold-400: #f2b419;
-  --color-gold-500: #e5a50a;   /* primary brand gold */
-  --color-gold-600: #c4850a;
-  --color-gold-700: #9c6410;
-  --color-gold-800: #7f4f15;
-  --color-gold-900: #6b4117;
+  /* "gluu orange" — the uncanny middle ground between the Option 5 gold
+     (#e5a50a) and that other famous orange (#ff9900). Close enough to make
+     people do a double-take, golden enough that they can't place it. */
+  --color-gold-50: #fff7eb;
+  --color-gold-100: #feecc7;
+  --color-gold-200: #fdd98a;
+  --color-gold-300: #fbc24d;
+  --color-gold-400: #fbaa17;
+  --color-gold-500: #f59e0b;   /* primary — rgb(245,158,11) */
+  --color-gold-600: #d97f06;
+  --color-gold-700: #b45f09;
+  --color-gold-800: #92490e;
+  --color-gold-900: #78390f;
 
   /* warm ink + cream neutrals */
   --color-ink-950: #100e0a;

@@ -149,6 +149,11 @@ const STATS = [
 
 const ease = [0.22, 1, 0.36, 1] as const;
 
+const clamp = (v: number, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+/* map v in [i0,i1] → [o0,o1], clamped at the ends */
+const track = (v: number, i0: number, i1: number, o0: number, o1: number) =>
+  o0 + (o1 - o0) * clamp((v - i0) / (i1 - i0));
+
 function Reveal({ children, delay = 0 }: { children: React.ReactNode; delay?: number; key?: React.Key }) {
   return (
     <motion.div
@@ -190,120 +195,140 @@ function Nav() {
   );
 }
 
-/* Hero: the two G's rest slightly apart, then on the first scroll they
-   collide (a fist bump) and fly apart — one smooth motion that carries you
-   straight into the offerings. No scrubbing; a single triggered animation. */
+/* Hero: a pinned, scroll-scrubbed transition. Scroll position drives ONE
+   animation — the two G's collide (fist bump) then separate to reveal the
+   next page. Because every transform is a pure function of scroll progress,
+   scrolling back up runs the whole thing in reverse. The section is pinned
+   (sticky) so the page doesn't visually scroll while the animation plays. */
 function Hero() {
   const reduce = useReducedMotion();
-  const [phase, setPhase] = useState<'rest' | 'bump' | 'exit'>('rest');
-  const playing = useRef(false);
-
-  const play = () => {
-    if (playing.current || reduce) return;
-    playing.current = true;
-    setPhase('bump');
-  };
-
-  const goNext = () => document.getElementById('offerings')?.scrollIntoView({ behavior: 'smooth' });
+  const ref = useRef<HTMLElement>(null);
+  const [p, setP] = useState(0);
 
   useEffect(() => {
     if (reduce) return;
-    const atTop = () => window.scrollY < 12;
-    const onWheel = (e: WheelEvent) => {
-      if (phase === 'rest' && atTop() && e.deltaY > 0) {
-        e.preventDefault();
-        play();
-      }
-    };
-    let touchY: number | null = null;
-    const onTS = (e: TouchEvent) => {
-      touchY = e.touches[0].clientY;
-    };
-    const onTM = (e: TouchEvent) => {
-      if (phase === 'rest' && atTop() && touchY != null && touchY - e.touches[0].clientY > 8) {
-        e.preventDefault();
-        play();
-      }
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (phase === 'rest' && atTop() && (e.key === 'ArrowDown' || e.key === ' ' || e.key === 'PageDown')) {
-        e.preventDefault();
-        play();
-      }
-    };
+    let raf = 0;
     const onScroll = () => {
-      if (window.scrollY < 6 && phase === 'exit') {
-        playing.current = false;
-        setPhase('rest');
-      }
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const el = ref.current;
+        if (!el) return;
+        const span = el.offsetHeight - window.innerHeight; // scrollable distance while pinned
+        const prog = span > 0 ? clamp(-el.getBoundingClientRect().top / span) : 0;
+        setP(prog);
+      });
     };
-    window.addEventListener('wheel', onWheel, { passive: false });
-    window.addEventListener('touchstart', onTS, { passive: true });
-    window.addEventListener('touchmove', onTM, { passive: false });
-    window.addEventListener('keydown', onKey);
+    onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
     return () => {
-      window.removeEventListener('wheel', onWheel);
-      window.removeEventListener('touchstart', onTS);
-      window.removeEventListener('touchmove', onTM);
-      window.removeEventListener('keydown', onKey);
+      cancelAnimationFrame(raf);
       window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
     };
-  }, [phase, reduce]);
+  }, [reduce]);
 
-  // left / right fist choreography
-  const leftV = {
-    rest: { x: '-4%', scale: 1, opacity: 1, transition: { duration: 0.4, ease } },
-    bump: { x: '7%', scale: 1.1, opacity: 1, transition: { duration: 0.24, ease: 'easeOut' } },
-    exit: { x: '-260%', scale: 3.1, opacity: 0, transition: { duration: 0.75, ease: [0.6, 0, 0.35, 1] } },
-  };
-  const rightV = {
-    rest: { x: '4%', scale: 1, opacity: 1, transition: { duration: 0.4, ease } },
-    bump: { x: '-7%', scale: 1.1, opacity: 1, transition: { duration: 0.24, ease: 'easeOut' } },
-    exit: { x: '260%', scale: 3.1, opacity: 0, transition: { duration: 0.75, ease: [0.6, 0, 0.35, 1] } },
-  };
+  if (reduce) {
+    return (
+      <section id="top" className="relative flex min-h-screen flex-col items-center justify-center px-6 pt-28 text-center">
+        <div className="mb-8 flex items-center justify-center">
+          <div className="h-24 w-24 text-ink-900">
+            <GluuGlyph className="h-full w-full -rotate-[10deg]" strokeWidth={11} />
+          </div>
+          <div className="-ml-3 h-24 w-24 text-gold-500">
+            <GluuGlyph className="h-full w-full -rotate-[10deg] scale-x-[-1]" strokeWidth={11} />
+          </div>
+        </div>
+        <p className="mb-3 text-sm font-bold uppercase tracking-[0.2em] text-gold-600">The operational glue</p>
+        <h1 className="max-w-3xl text-4xl font-extrabold tracking-tight text-ink-900 md:text-6xl">
+          Your whole company, <span className="text-gold-500"><BoxedUU pre="gl" post="d" /></span> into one.
+        </h1>
+        <a href="#offerings" className="mt-8 rounded-full bg-gold-500 px-7 py-3.5 font-bold text-ink-950">See what it does</a>
+      </section>
+    );
+  }
+
+  /* ---- choreography, all derived from scroll progress p (0 → 1) ---- */
+  // Phase 1 (0 → 0.4): the fists close in and collide (a knuckle bump).
+  // Phase 2 (0.4 → 1): they fly apart and fade as the reveal scales in.
+  const collide = p < 0.4;
+  const leftX = collide ? track(p, 0, 0.4, -3, 2) : track(p, 0.4, 1, 2, -48); // vw
+  const rightX = collide ? track(p, 0, 0.4, 3, -2) : track(p, 0.4, 1, -2, 48);
+  const scale = collide ? track(p, 0, 0.4, 1, 1.12) : track(p, 0.4, 1, 1.12, 3);
+  const fistOpacity = 1 - track(p, 0.62, 0.9, 0, 1);
+  const bumpFlash = track(p, 0.34, 0.4, 0, 1) * (1 - track(p, 0.4, 0.5, 0, 1)); // little spark at contact
+
+  const introOpacity = 1 - track(p, 0, 0.18, 0, 1);
+  const revealOpacity = track(p, 0.5, 0.9, 0, 1);
+  const revealScale = track(p, 0.5, 1, 0.92, 1);
 
   return (
-    <section id="top" className="relative flex h-screen items-center justify-center overflow-hidden px-6">
-      <div className="pointer-events-none absolute -top-24 right-[-10%] h-[460px] w-[460px] rounded-full bg-gold-200/40 blur-[120px]" />
+    <section id="top" ref={ref} className="relative h-[200vh]">
+      <div className="sticky top-0 flex h-screen items-center justify-center overflow-hidden px-6">
+        <div className="pointer-events-none absolute -top-24 right-[-10%] h-[460px] w-[460px] rounded-full bg-gold-200/40 blur-[120px]" />
 
-      {/* the two fists */}
-      <div className="flex items-center justify-center">
-        <motion.div
-          className="h-24 w-24 text-ink-900 md:h-40 md:w-40"
-          variants={leftV}
-          animate={reduce ? 'rest' : phase}
-          onAnimationComplete={(def) => {
-            if (def === 'bump') {
-              setPhase('exit');
-              goNext(); // scroll while the fists fly apart → one continuous motion
-            }
-          }}
+        {/* Revealed "next page" — fades + scales in as the fists separate */}
+        <div
+          className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center"
+          style={{ opacity: revealOpacity, transform: `scale(${revealScale})`, pointerEvents: p > 0.6 ? 'auto' : 'none' }}
         >
-          <GluuGlyph className="h-full w-full -rotate-[10deg]" strokeWidth={11} />
-        </motion.div>
-        <motion.div className="-ml-3 h-24 w-24 text-gold-500 md:h-40 md:w-40" variants={rightV} animate={reduce ? 'rest' : phase}>
-          <GluuGlyph className="h-full w-full -rotate-[10deg] scale-x-[-1]" strokeWidth={11} />
-        </motion.div>
+          <p className="mb-4 text-sm font-bold uppercase tracking-[0.2em] text-gold-600">The operational glue</p>
+          <h2 className="max-w-4xl text-4xl font-extrabold leading-[1.05] tracking-tight text-ink-900 md:text-7xl">
+            Your whole company,{' '}
+            <span className="text-gold-500">
+              <BoxedUU pre="gl" post="d" />
+            </span>{' '}
+            into one.
+          </h2>
+          <p className="mt-6 max-w-xl text-lg text-ink-500 md:text-xl">
+            Your business runs on 30 tools that don't talk to each other. gluu makes them act like one — so you, and the AI
+            you already use, can finally just ask.
+          </p>
+          <a
+            href="#offerings"
+            className="group mt-9 flex items-center gap-2 rounded-full bg-gold-500 px-7 py-3.5 text-base font-bold text-ink-950 shadow-lg shadow-gold-500/25 transition hover:bg-gold-400"
+          >
+            See what it does
+            <ArrowRight className="h-5 w-5 transition group-hover:translate-x-1" />
+          </a>
+        </div>
+
+        {/* contact spark at the bump */}
+        <div
+          className="pointer-events-none absolute h-40 w-40 rounded-full bg-gold-300/50 blur-2xl"
+          style={{ opacity: bumpFlash, transform: `scale(${0.6 + bumpFlash})` }}
+        />
+
+        {/* the two fists — collide then separate, driven by p */}
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center" style={{ opacity: fistOpacity }}>
+          <div
+            className="h-24 w-24 text-ink-900 md:h-40 md:w-40"
+            style={{ transform: `translateX(${leftX}vw) rotate(-10deg) scale(${scale})` }}
+          >
+            <GluuGlyph className="h-full w-full" strokeWidth={11} />
+          </div>
+          <div
+            className="-ml-3 h-24 w-24 text-gold-500 md:h-40 md:w-40"
+            style={{ transform: `translateX(${rightX}vw) scaleX(-1) rotate(-10deg) scale(${scale})` }}
+          >
+            <GluuGlyph className="h-full w-full" strokeWidth={11} />
+          </div>
+        </div>
+
+        {/* wordmark + hint at rest — fades out as the animation begins */}
+        <div
+          className="pointer-events-none absolute bottom-[14%] flex flex-col items-center gap-3 text-center"
+          style={{ opacity: introOpacity }}
+        >
+          <BoxedUU className="text-4xl font-extrabold tracking-tight text-ink-900 md:text-5xl" />
+          <div className="flex flex-col items-center gap-1.5 text-ink-400">
+            <span className="text-xs font-semibold uppercase tracking-widest">Scroll to open</span>
+            <motion.span animate={{ y: [0, 8, 0] }} transition={{ duration: 1.4, repeat: Infinity }}>
+              <ArrowDown className="h-5 w-5" />
+            </motion.span>
+          </div>
+        </div>
       </div>
-
-      {/* wordmark + hint (fade out once the bump starts) */}
-      <motion.div
-        className="pointer-events-none absolute bottom-[16%] flex flex-col items-center gap-3 text-center"
-        animate={{ opacity: phase === 'rest' ? 1 : 0 }}
-        transition={{ duration: 0.3 }}
-      >
-        <BoxedUU className="text-4xl font-extrabold tracking-tight text-ink-900 md:text-5xl" />
-        <button
-          onClick={() => (reduce ? goNext() : play())}
-          className="pointer-events-auto flex flex-col items-center gap-1.5 text-ink-400 transition hover:text-ink-700"
-        >
-          <span className="text-xs font-semibold uppercase tracking-widest">Scroll to open</span>
-          <motion.span animate={{ y: [0, 8, 0] }} transition={{ duration: 1.4, repeat: Infinity }}>
-            <ArrowDown className="h-5 w-5" />
-          </motion.span>
-        </button>
-      </motion.div>
     </section>
   );
 }
@@ -311,44 +336,29 @@ function Hero() {
 function Offerings() {
   return (
     <section id="offerings" className="mx-auto max-w-7xl px-5 py-20 md:px-10 md:py-28">
-      {/* the reveal you land on after the fist-bump */}
       <Reveal>
-        <p className="text-sm font-bold uppercase tracking-[0.2em] text-gold-600">The operational glue</p>
-        <h2 className="mt-4 max-w-4xl text-4xl font-extrabold leading-[1.05] tracking-tight text-ink-900 md:text-7xl">
-          Your whole company,{' '}
-          <span className="text-gold-500">
-            <BoxedUU pre="gl" post="d" />
-          </span>{' '}
-          into one.
+        <p className="text-sm font-bold uppercase tracking-[0.2em] text-gold-600">What gluu does</p>
+        <h2 className="mt-4 max-w-3xl text-3xl font-extrabold leading-tight tracking-tight text-ink-900 md:text-5xl">
+          One place for everything your business runs on.
         </h2>
-        <p className="mt-6 max-w-2xl text-lg text-ink-500 md:text-xl">
-          Your business runs on 30 tools that don't talk to each other. gluu makes them act like one — so you, and the AI
-          you already use, can finally just ask.
+        <p className="mt-5 max-w-2xl text-lg text-ink-500">
+          We don't replace your tools. We make them work together — and build the ones nobody else will.
         </p>
       </Reveal>
 
-      <div className="mt-16 border-t border-ink-900/10 pt-14">
-        <Reveal>
-          <p className="text-sm font-bold uppercase tracking-[0.2em] text-gold-600">What gluu does</p>
-          <h3 className="mt-3 max-w-2xl text-2xl font-extrabold tracking-tight text-ink-900 md:text-3xl">
-            We don't replace your tools. We make them work together.
-          </h3>
-        </Reveal>
-
-        <div className="mt-10 grid gap-6 md:grid-cols-3">
-          {OFFERINGS.map((o, i) => (
-            <Reveal key={o.tag} delay={i * 0.1}>
-              <div className="group flex h-full flex-col rounded-3xl border border-ink-900/10 bg-cream-50 p-7 transition hover:-translate-y-1 hover:border-gold-300 hover:shadow-xl hover:shadow-gold-500/5 md:p-8">
-                <span className="mb-6 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gold-100 text-gold-700 transition group-hover:bg-gold-500 group-hover:text-ink-950">
-                  <o.icon className="h-6 w-6" />
-                </span>
-                <p className="text-xs font-bold uppercase tracking-widest text-gold-600">{o.tag}</p>
-                <h4 className="mt-2 text-2xl font-extrabold leading-snug tracking-tight text-ink-900">{o.title}</h4>
-                <p className="mt-3 leading-relaxed text-ink-500">{o.copy}</p>
-              </div>
-            </Reveal>
-          ))}
-        </div>
+      <div className="mt-14 grid gap-6 md:grid-cols-3">
+        {OFFERINGS.map((o, i) => (
+          <Reveal key={o.tag} delay={i * 0.1}>
+            <div className="group flex h-full flex-col rounded-3xl border border-ink-900/10 bg-cream-50 p-7 transition hover:-translate-y-1 hover:border-gold-300 hover:shadow-xl hover:shadow-gold-500/5 md:p-8">
+              <span className="mb-6 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gold-100 text-gold-700 transition group-hover:bg-gold-500 group-hover:text-ink-950">
+                <o.icon className="h-6 w-6" />
+              </span>
+              <p className="text-xs font-bold uppercase tracking-widest text-gold-600">{o.tag}</p>
+              <h3 className="mt-2 text-2xl font-extrabold leading-snug tracking-tight text-ink-900">{o.title}</h3>
+              <p className="mt-3 leading-relaxed text-ink-500">{o.copy}</p>
+            </div>
+          </Reveal>
+        ))}
       </div>
     </section>
   );
